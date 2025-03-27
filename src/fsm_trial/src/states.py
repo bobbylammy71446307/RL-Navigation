@@ -106,5 +106,6 @@ def main():
 if __name__=="__main__":
     try:
         main()
+        #hello
     except rospy.ROSInterruptException:
         rospy.loginfo("FSM shutdown by user")
