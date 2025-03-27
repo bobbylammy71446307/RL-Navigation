@@ -8,8 +8,8 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import String
 
-way_point_1=[3.0,0.0]
-way_point_2=[5.0,0.0]
+way_point_1=[22.0,0.0]
+way_point_2=[22.0,-21.0]
 
 class IdleState(smach.State):
     def __init__(self):
