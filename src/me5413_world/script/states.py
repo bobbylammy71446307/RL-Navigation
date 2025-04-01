@@ -7,6 +7,8 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import String,Bool
+from perception_depth import Image_segmentation
+from threading import Thread
 
 way_point_2=[22.0,-21.0]
 
@@ -109,7 +111,7 @@ class Task2_exploration(smach.State):
             self.goal.target_pose.pose.orientation.z = waypoint[5]
             self.goal.target_pose.pose.orientation.w = waypoint[6]
             self.client.send_goal(self.goal)
-
+            rospy.loginfo("Sent waypoint number %s", self.waypoint_list.index(waypoint)+1)
             start_time = rospy.Time.now()
             last_state=None
 
@@ -133,7 +135,7 @@ class Task2_exploration(smach.State):
                         rospy.loginfo("Final goal reached!")
                         return 'goal_reached'
                     else:
-                        rospy.loginfo(f"Waypoint number {self.waypoint_list.index(waypoint)} reached!" )
+                        rospy.loginfo(f"Waypoint number {self.waypoint_list.index(waypoint)+1} reached!" )
                         break
                 elif current_state in [actionlib.GoalStatus.PREEMPTED, actionlib.GoalStatus.ABORTED,
                                         actionlib.GoalStatus.REJECTED, actionlib.GoalStatus.RECALLED]:
@@ -150,6 +152,7 @@ class Task2_exploration(smach.State):
 
             # If we exit while loop due to shutdown
         self.client.cancel_all_goals()
+
         return 'stopped'
 
 
@@ -186,26 +189,8 @@ class Task3_unlock_bridge(smach.State):
 
 
 
-def main():
-    rospy.init_node('fsm_navigation')
-
-    sm=smach.StateMachine(outcomes=['done'])
-
-    with sm:
-        smach.StateMachine.add('IDLE',IdleState(),transitions={'task_received':'TASK1_OBS_AVOID_NAV'})
-        smach.StateMachine.add('TASK1_OBS_AVOID_NAV',Task1_obs_avoid_nav(),transitions={'goal_reached':'TASK2_EXPLORATION','failed':'done','stopped':'done'})
-        smach.StateMachine.add('TASK2_EXPLORATION',Task2_exploration(waypoint_list),transitions={'goal_reached':'TASK3_UNLOCK_BRIDGE','failed':'done','stopped':'done'})
-        smach.StateMachine.add('TASK3_UNLOCK_BRIDGE',Task3_unlock_bridge(),transitions={'done':'done','failed':'done'})
-
-    
-    # Execute SMACH plan
-    outcome = sm.execute()
     
 
 
 if __name__=="__main__":
-    try:
-        main()
-        #hello
-    except rospy.ROSInterruptException:
-        rospy.loginfo("FSM shutdown by user")
+    pass

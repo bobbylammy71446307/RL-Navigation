@@ -4,6 +4,7 @@ import rospy
 import subprocess
 from geometry_msgs.msg import PoseStamped
 from states import Task1_obs_avoid_nav, IdleState, Task2_exploration, Task3_unlock_bridge
+from perception_depth import Image_segmentation
 waypoint_list = [
     [22, -21, 0.0, 0.0, 0.0, -1.0, 0.1],
     [10, -19, 0.0, 0.0, 0.0, -1.0, 0.0],
@@ -25,8 +26,9 @@ def main():
         smach.StateMachine.add('TASK1_OBS_AVOID_NAV',Task1_obs_avoid_nav(),transitions={'goal_reached':'TASK2_EXPLORATION','failed':'done','stopped':'done'})
         smach.StateMachine.add('TASK2_EXPLORATION',Task2_exploration(waypoint_list),transitions={'goal_reached':'TASK3_UNLOCK_BRIDGE','failed':'done','stopped':'done'})
         smach.StateMachine.add('TASK3_UNLOCK_BRIDGE',Task3_unlock_bridge(),transitions={'done':'done','failed':'done'})
+    Img_seg= Image_segmentation()
     # Execute SMACH plan
-    outcome = sm.execute()
+    sm.execute()
     
     # Wait for ctrl-c to stop the application
     rospy.spin()
