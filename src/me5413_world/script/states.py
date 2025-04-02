@@ -70,7 +70,7 @@ class Jackal_Robot():
         
 
 class Task1_obs_avoid_nav(smach.State):
-    def __init__(self,goal=[22, -21, 0.0, 0.0, 0.0, -1.0, 0.1]):
+    def __init__(self,goal=[20, -21, 0.0, 0.0, 0.0, -1.0, 0.1]):
         smach.State.__init__(self,outcomes=['goal_reached','failed','stopped'])
         self.timeout = rospy.Duration(240)
         self.goal=goal
@@ -162,7 +162,7 @@ class Task3_move_to_bridge(smach.State):
         rospy.loginfo("Received data: %s", self.data_received)
 
     def extract_msg(self,msg):
-        return [msg.point.x+2, msg.point.y, msg.point.z,0,0,-1,0]
+        return [10, msg.point.y, msg.point.z,0,0,-1,0]
         
 
     def execute(self,userdata):
