@@ -158,11 +158,11 @@ class Task3_move_to_bridge(smach.State):
         
     def callback(self, msg):
         """Callback for the subscriber"""
-        self.data_received = msg.data
+        self.data_received = msg
         rospy.loginfo("Received data: %s", self.data_received)
 
     def extract_msg(self,msg):
-        return [msg.point.x, msg.point.y, msg.point.z,0,0,-1,0]
+        return [msg.point.x+2, msg.point.y, msg.point.z,0,0,-1,0]
         
 
     def execute(self,userdata):
@@ -170,13 +170,13 @@ class Task3_move_to_bridge(smach.State):
             start_time = rospy.Time.now()
             last_state=None
             while not rospy.is_shutdown():
-                if self.data_received is not None and cone_coor is None:
-                    cone_coor=self.extract_msg(self.data_received)
-                    rospy.loginfo("Cone coordinates: %s", cone_coor)
+                if self.data_received is not None and self.cone_coor is None:
+                    self.cone_coor=self.extract_msg(self.data_received)
+                    rospy.loginfo("Cone coordinates: %s", self.cone_coor)
                     if not self.robot.wait_for_server():
                         return 'failed'
                     else:
-                        self.robot.send_goal(cone_coor)
+                        self.robot.send_goal(self.cone_coor)
                         rospy.loginfo("Sent goal to move_base")
 
                 last_state,terminate_token=self.robot.check_state(last_state)
@@ -200,6 +200,7 @@ class Task4_unlock_bridge(smach.State):
         self.publisher=rospy.Publisher(self.topic_name,Bool,queue_size=10)
         self.ros_msg=Bool(True)
         self.timeout = 10  # seconds
+        self.robot=Jackal_Robot()
         
     def wait_for_connection(self):
         start_time = rospy.Time.now()
@@ -218,6 +219,7 @@ class Task4_unlock_bridge(smach.State):
             rospy.loginfo("Executing Task2_unlock_bridge")
             self.publisher.publish(self.ros_msg)
             rospy.loginfo("Published message to topic: %s", self.topic_name)
+
             rospy.sleep(0.05)  # Wait for a moment to ensure the message is received
             return 'done'
         except Exception as e:

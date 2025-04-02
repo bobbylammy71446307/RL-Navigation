@@ -24,6 +24,8 @@ template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cone.p
 
 class ConeDetection():
     def __init__(self):
+        rospy.loginfo("Running Initializing Cone Detection Node")
+
         self.bridge = CvBridge()
         self.processing = False
         self.template = cv2.imread(template_path)
@@ -117,11 +119,11 @@ class ConeDetection():
 
             # Draw bounding box for debug TODO: comment out this part after debugging
             debug_image = self.img_curr.copy()
-            cv2.rectangle(debug_image, (x, y), (x + width, y + height), (0, 255, 0), 2)
-            cv2.putText(debug_image, f"{max_match_val:.2f}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            #cv2.rectangle(debug_image, (x, y), (x + width, y + height), (0, 255, 0), 2)
+            #cv2.putText(debug_image, f"{max_match_val:.2f}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            cv2.imshow("BB of the cone", debug_image)
-            cv2.waitKey(1)
+            #cv2.imshow("BB of the cone", debug_image)
+            #cv2.waitKey(1)
             
     def process_cone_detection(self,x,y,w,h,confidence):
         try:

@@ -15,6 +15,7 @@ from std_msgs.msg import Int32MultiArray
 class Image_segmentation:
     def __init__(self, rate=10):
         rospy.loginfo(f" Running rate: {rate}")
+        rospy.loginfo("Running Initializing Image Segmentation Node")
         self.bridge = CvBridge()
         self.rate = rospy.Rate(rate)
         self.detected_numbers_positions = {}
