@@ -70,7 +70,7 @@ class Jackal_Robot():
         
 
 class Task1_obs_avoid_nav(smach.State):
-    def __init__(self,goal=[20, -21, 0.0, 0.0, 0.0, -1.0, 0.1]):
+    def __init__(self,goal=[19, -19, 0.0, 0.0, 0.0, -1.0, 0.1]):
         smach.State.__init__(self,outcomes=['goal_reached','failed','stopped'])
         self.timeout = rospy.Duration(240)
         self.goal=goal
@@ -162,7 +162,7 @@ class Task3_move_to_bridge(smach.State):
         rospy.loginfo("Received data: %s", self.data_received)
 
     def extract_msg(self,msg):
-        return [10, msg.point.y, msg.point.z,0,0,-1,0]
+        return [10, msg.point.y, 0,0,0,-1,0]
         
 
     def execute(self,userdata):
@@ -211,15 +211,19 @@ class Task4_unlock_bridge(smach.State):
             rospy.sleep(0.1)
         return False
     
+    def move_forward(self):
+        pass
     def execute(self,userdata):
         if not self.wait_for_connection():
             rospy.logerr("Failed to connect to subscribers for topic %s", self.topic_name)
             return 'failed'
         try:
+
+            
             rospy.loginfo("Executing Task2_unlock_bridge")
+            self.move_forward()
             self.publisher.publish(self.ros_msg)
             rospy.loginfo("Published message to topic: %s", self.topic_name)
-
             rospy.sleep(0.05)  # Wait for a moment to ensure the message is received
             return 'done'
         except Exception as e:
