@@ -5,7 +5,8 @@ import rospy
 import smach
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from geometry_msgs.msg import PointStamped, PoseStamped
+from geometry_msgs.msg import PointStamped, PoseStamped, Twist
+from nav_msgs.msg import Odometry
 from std_msgs.msg import String,Bool
 from perception_depth import Image_segmentation
 from threading import Thread
@@ -19,6 +20,7 @@ class Jackal_Robot():
         self.goal = MoveBaseGoal()
         self.client=actionlib.SimpleActionClient('move_base',MoveBaseAction)
         self.timeout = rospy.Duration(240)
+        self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
     
     def send_goal(self, goal):
@@ -66,6 +68,14 @@ class Jackal_Robot():
             self.client.cancel_goal()
             return True
         return False
+    
+    def move_forward(self,vel_x=1):
+        # Create a Twist message to move the robot forward
+        twist = Twist()
+        twist.linear.x = vel_x
+        twist.angular.z = 0.0
+        # Publish the Twist message to the /cmd_vel topic
+        self.cmd_vel_pub.publish(twist)
     
         
 
@@ -196,12 +206,16 @@ class Task3_move_to_bridge(smach.State):
 class Task4_unlock_bridge(smach.State):
     def __init__(self):
         smach.State.__init__(self,outcomes=['done', 'failed'])
-        self.topic_name='/cmd_open_bridge'
-        self.publisher=rospy.Publisher(self.topic_name,Bool,queue_size=10)
+        self.publisher=rospy.Publisher('/cmd_open_bridge',Bool,queue_size=10)
         self.ros_msg=Bool(True)
         self.timeout = 10  # seconds
         self.robot=Jackal_Robot()
-        
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        self.current_pose=None
+    
+    def odom_callback(self, msg):
+        self.current_pose = msg.pose.pose
+
     def wait_for_connection(self):
         start_time = rospy.Time.now()
         while (rospy.Time.now() - start_time).to_sec() < self.timeout:
@@ -210,21 +224,20 @@ class Task4_unlock_bridge(smach.State):
                 return True
             rospy.sleep(0.1)
         return False
-    
-    def move_forward(self):
-        pass
+
     def execute(self,userdata):
         if not self.wait_for_connection():
             rospy.logerr("Failed to connect to subscribers for topic %s", self.topic_name)
             return 'failed'
         try:
-
-            
-            rospy.loginfo("Executing Task2_unlock_bridge")
-            self.move_forward()
+            rospy.loginfo("Executing Task4_pass_bridge")
+            self.robot.move_forward(vel_x=0.5)
             self.publisher.publish(self.ros_msg)
             rospy.loginfo("Published message to topic: %s", self.topic_name)
             rospy.sleep(0.05)  # Wait for a moment to ensure the message is received
+            while self.current_pose is not None and self.current_pose.position.x > 5:
+                rospy.sleep(0.1)
+            rospy.loginfo("Robot has passed the bridge")
             return 'done'
         except Exception as e:
             rospy.logerr("Failed to publish message: %s", str(e))
