@@ -11,6 +11,7 @@ from std_msgs.msg import String,Bool
 from perception_depth import Image_segmentation
 from threading import Thread
 from cone_perception import ConeDetection
+import tf
 
 
 class Jackal_Robot():
@@ -208,39 +209,56 @@ class Task4_unlock_bridge(smach.State):
         smach.State.__init__(self,outcomes=['done', 'failed'])
         self.publisher=rospy.Publisher('/cmd_open_bridge',Bool,queue_size=10)
         self.ros_msg=Bool(True)
-        self.timeout = 10  # seconds
+        self.timeout = 20  # seconds
         self.robot=Jackal_Robot()
-        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        self.tf_listener = tf.TransformListener()
         self.current_pose=None
+        self.connection_retries = 3  # number of retry attempts
     
-    def odom_callback(self, msg):
-        self.current_pose = msg.pose.pose
+    def get_current_x_position(self):
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform('map', 'base_link', rospy.Time(0))
+            return trans[0]
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+            rospy.logerr("Could not get robot pose: %s", e)
+            return None
 
     def wait_for_connection(self):
-        start_time = rospy.Time.now()
-        while (rospy.Time.now() - start_time).to_sec() < self.timeout:
-            if self.publisher.get_num_connections() > 0:
-                self.connected = True
-                return True
-            rospy.sleep(0.1)
-        return False
+            for attempt in range(self.connection_retries):
+                start_time = rospy.Time.now()
+                while (rospy.Time.now() - start_time).to_sec() < self.timeout/self.connection_retries:
+                    if self.publisher.get_num_connections() > 0:
+                        rospy.loginfo("Connected to /cmd_open_bridge subscribers")
+                        return True
+                    rospy.loginfo("Waiting for connection to /cmd_open_bridge subscribers...")
+                    rospy.sleep(1)
+                rospy.logwarn(f"Connection attempt {attempt+1} failed")
+            return False
 
     def execute(self,userdata):
         if not self.wait_for_connection():
-            rospy.logerr("Failed to connect to subscribers for topic %s", self.topic_name)
+            rospy.logerr("Failed to connect to subscribers for topic /cmd_open_bridge")
             return 'failed'
         try:
             rospy.loginfo("Executing Task4_pass_bridge")
-            self.robot.move_forward(vel_x=0.5)
+            while self.current_pose is None or self.current_pose > 7.5:
+                self.robot.move_forward(vel_x=1)
+                self.current_pose=self.get_current_x_position()
+                rospy.loginfo("Current x position: %s", self.current_pose)
+                rospy.sleep(0.1)
+            rospy.loginfo("Robot has moved to front of cone")
             self.publisher.publish(self.ros_msg)
-            rospy.loginfo("Published message to topic: %s", self.topic_name)
+            rospy.loginfo("Published message to topic:/cmd_open_bridge")
             rospy.sleep(0.05)  # Wait for a moment to ensure the message is received
-            while self.current_pose is not None and self.current_pose.position.x > 5:
+            while self.current_pose is None or self.current_pose > 5:
+                self.robot.move_forward(vel_x=1.5)
+                self.current_pose=self.get_current_x_position()
+                rospy.loginfo("Current x position: %s", self.current_pose)
                 rospy.sleep(0.1)
             rospy.loginfo("Robot has passed the bridge")
             return 'done'
         except Exception as e:
-            rospy.logerr("Failed to publish message: %s", str(e))
+            rospy.logerr("Failed to execute Task4: %s", str(e))
             return 'failed'
 
 
