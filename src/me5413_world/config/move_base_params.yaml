@@ -13,6 +13,6 @@ recovery_behavior_enabled: true
 clearing_rotation_allowed: true
 
 # Add explicit planners here:
-base_global_planner: "navfn/NavfnROS"
-# base_local_planner: "base_local_planner/TrajectoryPlannerROS"
-base_local_planner: "teb_local_planner/TebLocalPlannerROS"
+base_global_planner: "global_planner/GlobalPlanner"
+base_local_planner: "base_local_planner/TrajectoryPlannerROS"
+# base_local_planner: "teb_local_planner/TebLocalPlannerROS"
