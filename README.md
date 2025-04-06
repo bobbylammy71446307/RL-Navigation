@@ -1,14 +1,12 @@
 # ME5413_Final_Project
 
-NUS ME5413 Autonomous Mobile Robotics Final Project
-> Authors: [Christina](https://github.com/ldaowen), [Ziggy](https://github.com/ziggyhuang), [Dongen](https://github.com/nuslde), and [Shuo](https://github.com/SS47816)
+NUS ME5413 Autonomous Mobile Robotics Final Project  
+> Authors: [Anurag Roy](https://github.com/anuragroy2001), [Ariel Hu](https://github.com/loggcc), [Chun Pok Lam](https://github.com/bobbylammy71446307), [Jinhan Xue](https://github.com/tchb0910), [Praveen Krishnapur](https://github.com/Praveen8978), and [Yurong Liu](https://github.com/liuyurong129)
 
 ![Ubuntu 20.04](https://img.shields.io/badge/OS-Ubuntu_20.04-informational?style=flat&logo=ubuntu&logoColor=white&color=2bbc8a)
 ![ROS Noetic](https://img.shields.io/badge/Tools-ROS_Noetic-informational?style=flat&logo=ROS&logoColor=white&color=2bbc8a)
 ![C++](https://img.shields.io/badge/Code-C++-informational?style=flat&logo=c%2B%2B&logoColor=white&color=2bbc8a)
 ![Python](https://img.shields.io/badge/Code-Python-informational?style=flat&logo=Python&logoColor=white&color=2bbc8a)
-![GitHub Repo stars](https://img.shields.io/github/stars/NUS-Advanced-Robotics-Centre/ME5413_Final_Project?color=FFE333)
-![GitHub Repo forks](https://img.shields.io/github/forks/NUS-Advanced-Robotics-Centre/ME5413_Final_Project?color=FFE333)
 
 ![cover_image](src/me5413_world/media/gz_world.png)
 
@@ -19,169 +17,195 @@ NUS ME5413 Autonomous Mobile Robotics Final Project
   * ROS Noetic (Melodic not yet tested)
   * C++11 and above
   * CMake: 3.0.2 and above
-* This repo depends on the following standard ROS pkgs:
-  * `roscpp`
-  * `rospy`
-  * `rviz`
-  * `std_msgs`
-  * `nav_msgs`
-  * `geometry_msgs`
-  * `visualization_msgs`
-  * `tf2`
-  * `tf2_ros`
-  * `tf2_geometry_msgs`
-  * `pluginlib`
-  * `map_server`
-  * `gazebo_ros`
-  * `jsk_rviz_plugins`
-  * `jackal_gazebo`
-  * `jackal_navigation`
-  * `velodyne_simulator`
-  * `teleop_twist_keyboard`
-* And this [gazebo_model](https://github.com/osrf/gazebo_models) repositiory
+* Standard ROS packages:
+  * `roscpp`, `rospy`, `rviz`, `std_msgs`, `nav_msgs`, `geometry_msgs`, `visualization_msgs`, `tf2`, `tf2_ros`, `tf2_geometry_msgs`, `pluginlib`, `map_server`, `gazebo_ros`, `jsk_rviz_plugins`
+  * `jackal_gazebo`, `jackal_navigation`, `velodyne_simulator`, `teleop_twist_keyboard`
+* External Models:
+  * [Gazebo official models](https://github.com/osrf/gazebo_models)
+
+## Project Structure
+
+### SLAM
+- **Cartographer2D**
+- **Cartographer3D**
+- **Fast-LIO2**
+
+### Planning and Control (PnC)
+- **A\***
+- **RRT**
+- **DWA**
+- **TEB**
+
+### Perception
+- **EasyOCR**
+
+### Decision and Exploration
+- **Finite State Machine (FSM)**
 
 ## Installation
 
-This repo is a ros workspace, containing three rospkgs:
+This repo is a ROS workspace with three packages:
 
-* `interactive_tools` are customized tools to interact with gazebo and your robot
-* `jackal_description` contains the modified jackal robot model descriptions
-* `me5413_world` the main pkg containing the gazebo world, and the launch files
-
-**Note:** If you are working on this project, it is encouraged to fork this repository and work on your own fork!
-
-After forking this repo to your own github:
+- `interactive_tools`
+- `jackal_description`
+- `me5413_world`
 
 ```bash
-# Clone your own fork of this repo (assuming home here `~/`)
-cd
+# Clone your own fork of this repo
+cd ~
 git clone https://github.com/<YOUR_GITHUB_USERNAME>/ME5413_Final_Project.git
 cd ME5413_Final_Project
 
 # Install all dependencies
 rosdep install --from-paths src --ignore-src -r -y
+```
 
-# Build
-catkin_make
-# Source 
+### 1. Build SLAM packages
+
+#### Cartographer
+
+Install Abseil:
+
+```bash
+~/ME5413_Final_Project/src/third_party/cartographer/cartographer/scripts/install_abseil.sh
+```
+
+Build Cartographer:
+
+```bash
+cd ~/ME5413_Final_Project
+catkin build cartographer*
+```
+
+#### Fast-LIO2
+
+Build Fast-LIO:
+
+```bash
+cd ~/ME5413_Final_Project
+catkin build fast_lio
+```
+
+### 2. Build Extra Packages
+
+```bash
+catkin build
+```
+
+### 3. Prepare Perception (optional)
+
+```bash
+# Install Conda first, then:
+conda create -n me5413 python=3.8
+conda activate me5413
+
+# Install dependencies
+conda install pytorch==2.1.1 torchvision==0.16.1 pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install -c conda-forge opencv rosdep rospkg easyocr decorator pexpect numpy defusedxml ipdb
+
+# Set PYTHONPATH if needed
+export PYTHONPATH=$PYTHONPATH:/usr/lib/python3.8/dist-packages
+```
+
+### 4. Source Workspace
+
+```bash
 source devel/setup.bash
 ```
 
-To properly load the gazebo world, you will need to have the necessary model files in the `~/.gazebo/models/` directory.
+### 5. Prepare Gazebo Models
 
-There are two sources of models needed:
+```bash
+# Official models
+cd ~
+mkdir -p .gazebo/models
+git clone https://github.com/osrf/gazebo_models.git
+cp -r ~/gazebo_models/* ~/.gazebo/models
 
-* [Gazebo official models](https://github.com/osrf/gazebo_models)
-  
-  ```bash
-  # Create the destination directory
-  cd
-  mkdir -p .gazebo/models
-
-  # Clone the official gazebo models repo (assuming home here `~/`)
-  git clone https://github.com/osrf/gazebo_models.git
-
-  # Copy the models into the `~/.gazebo/models` directory
-  cp -r ~/gazebo_models/* ~/.gazebo/models
-  ```
-
-* [Our customized models](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/tree/main/src/me5413_world/models)
-
-  ```bash
-  # Copy the customized models into the `~/.gazebo/models` directory
-  cp -r ~/ME5413_Final_Project/src/me5413_world/models/* ~/.gazebo/models
-  ```
+# Custom models
+cp -r ~/ME5413_Final_Project/src/me5413_world/models/* ~/.gazebo/models
+```
 
 ## Usage
 
 ### 0. Gazebo World
 
-This command will launch the gazebo with the project world
-
 ```bash
-# Launch Gazebo World together with our robot
 roslaunch me5413_world world.launch
 ```
 
 ### 1. Manual Control
 
-If you wish to explore the gazebo world a bit, we provide you a way to manually control the robot around:
-
 ```bash
-# Only launch the robot keyboard teleop control
 roslaunch me5413_world manual.launch
 ```
 
-**Note:** This robot keyboard teleop control is also included in all other launch files, so you don't need to launch this when you do mapping or navigation.
-
-![rviz_manual_image](src/me5413_world/media/rviz_manual.png)
+---
 
 ### 2. Mapping
 
-After launching **Step 0**, in the second terminal:
+Choose one of the following launch files depending on the method:
+
+#### **Cartographer 2D**:
 
 ```bash
-# Launch GMapping
-roslaunch me5413_world mapping.launch
+roslaunch me5413_world mapping_carto_2d.launch
 ```
 
-After finishing mapping, run the following command in the thrid terminal to save the map:
+#### **Cartographer 3D**:
 
 ```bash
-# Save the map as `my_map` in the `maps/` folder
+roslaunch me5413_world mapping_carto_3d.launch
+```
+
+- To save the map:
+
+```bash
 roscd me5413_world/maps/
 rosrun map_server map_saver -f my_map map:=/map
 ```
 
-![rviz_nmapping_image](src/me5413_world/media/rviz_mapping.png)
+#### **Fast-LIO2**:
+
+```bash
+roslaunch me5413_world mapping_fast_lio.launch
+```
+
+- Point Cloud to Map
+
+```bash
+source ~/ME5413_Final_Project/devel/setup.bash
+roslaunch pcd2pgm pcd2pgm.launch
+rosrun map_server map_saver
+```
+
+---
 
 ### 3. Navigation
 
-Once completed **Step 2** mapping and saved your map, quit the mapping process.
-
-Then, in the second terminal:
-
 ```bash
-# Load a map and launch AMCL localizer
-roslaunch me5413_world navigation.launch
+roslaunch me5413_world navigation_teb.launch
 ```
 
-![rviz_navigation_image](src/me5413_world/media/rviz_navigation.png)
+---
 
-## Student Tasks
+### 4. FSM
 
-### 1. Map the environment
+```bash
+rosrun me5413_world fsm.py
+```
 
-* You may use any SLAM algorithm you like, any type:
-  * 2D LiDAR
-  * 3D LiDAR
-  * Vision
-  * Multi-sensor
-* Verify your SLAM accuracy by comparing your odometry with the published `/gazebo/ground_truth/state` topic (`nav_msgs::Odometry`), which contains the gournd truth odometry of the robot.
-* You may want to use tools like [EVO](https://github.com/MichaelGrupp/evo) to quantitatively evaluate the performance of your SLAM algorithm.
-
-### 2. Using your own map, navigate your robot
-
-* We have provided you a GUI in RVIZ that allows you to click and generate/clear the random objects in the gazebo world:
-  
-  ![rviz_panel_image](src/me5413_world/media/control_panel.png)
-
-* From the starting point, move to one of the four given destination boxes at the end of the map:
-  * Count the number of occurance of each type of box (e.g. box 1, 2, 3, 4, the box numbers are randomly generated)
-  * Cross the bridge (the location of the bridge is randomly generated)
-  * Unlock the blockade on the bridge by publishing a `true` message (`std_msgs/Bool`) to the `/cmd_open_bridge` topic
-  * Dock at the destination box with the least number of occurance
+---
 
 ## Contribution
 
-You are welcome contributing to this repo by opening a pull-request
+We welcome contributions via pull requests.  
+Follow these style guides:
 
-We are following:
-
-* [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html),
-* [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#main),
-* [ROS C++ Style Guide](http://wiki.ros.org/CppStyleGuide)
+- [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
+- [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#main)
+- [ROS C++ Style Guide](http://wiki.ros.org/CppStyleGuide)
 
 ## License
 
-The [ME5413_Final_Project](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project) is released under the [MIT License](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/blob/main/LICENSE)
+This project is released under the [MIT License](https://github.com/NUS-Advanced-Robotics-Centre/ME5413_Final_Project/blob/main/LICENSE)

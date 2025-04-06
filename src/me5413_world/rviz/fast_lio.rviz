@@ -29,6 +29,8 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: LaserScan
+  - Class: rviz_panel::ME5413ControlPanel
+    Name: ME5413ControlPanel
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
