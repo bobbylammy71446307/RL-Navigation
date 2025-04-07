@@ -12,7 +12,6 @@
 
   <!-- Launch Move Base -->
   <include file="$(find me5413_world)/launch/move_base_teb.launch" />
-  <!-- <include file="$(find me5413_world)/launch/move_base_mpc.launch" /> -->
   <!--<include file="$(find me5413_world)/launch/move_base.launch" /> -->
 
 

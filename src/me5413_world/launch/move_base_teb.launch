@@ -10,18 +10,21 @@
   
 
     <rosparam file="$(find me5413_world)/params/teb_planner/teb_planner_param.yaml" command="load" />
-    <!-- <rosparam file="$(find me5413_world)/params/mpc_planner/mpc_planner_params_minimum_time.yaml" command="load" /> -->
     <rosparam file="$(find me5413_world)/params/teb_planner/costmap_converter_params.yaml" command="load" />
 
-    <!-- <param name="base_global_planner" type="string" value="navfn/NavfnROS" /> -->
-    <!-- <param name="base_global_planner" type="string" value="global_planner/GlobalPlanner" /> -->
-    <param name="base_global_planner" type="string" value="global_planner/RRTGlobalPlanner" />
-    <rosparam file="$(find rrt-global-planner)/params/rrt_global_planner.yaml" command="load" />
-    
+    <!-- <param name="base_global_planner" type="string" value="navfn/NavfnROS" />
+    <rosparam file="$(find me5413_world)/params/global_planner_params/navfn_params.yaml" command="load" />  -->
+    <param name="base_global_planner" type="string" value="global_planner/GlobalPlanner" />
+    <rosparam file="$(find me5413_world)/params/global_planner_params/global_planner_params.yaml" command="load" ns="GlobalPlanner" />
+    <!-- <param name="base_global_planner" type="string" value="global_planner/RRTGlobalPlanner" />
+    <rosparam file="$(find rrt-global-planner)/params/rrt_global_planner.yaml" command="load" /> -->
     <param name="planner_frequency" value="1.0" />
 
+
+    <!-- <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS"/>
+    <rosparam file="$(find me5413_world)/params/base_planner/base_local_planner_params.yaml" command="load" /> -->
+
     <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS" />
-    <!-- <param name="base_local_planner" value="mpc_local_planner/MpcLocalPlannerROS" /> -->
     <param name="controller_frequency" value="10.0" />
     
     <remap from="odom" to="odometry/filtered" />
