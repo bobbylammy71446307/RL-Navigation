@@ -19,7 +19,7 @@ class BoxCoordinates():
         self.bridge = CvBridge()
         self.processing = False
 
-        self.depth_thresh = 15
+        self.depth_thresh = 4.0
         self.depth_thresh_close = 1 #TODO: change the threshold values
         self.listener = tf.TransformListener()
         self.camera_info = rospy.wait_for_message("/front/rgb/camera_info", CameraInfo)
@@ -34,7 +34,9 @@ class BoxCoordinates():
 
         self.number = 8
         self.coords = []
-        self.num_freq_sub = rospy.Subscriber("/percep/numberData", Int32MultiArray, self.get_number)
+        # self.num_freq_sub = rospy.Subscriber("/percep/numberData", Int32MultiArray, self.get_number)
+        msgs = rospy.wait_for_message("/percep/numberData", Int32MultiArray)
+        self.get_number(msgs)
 
         self.ats = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.01)
         self.ats.registerCallback(self.synced_images_callback) 
@@ -45,8 +47,8 @@ class BoxCoordinates():
     def get_number(self, msg):
         freq_array = np.array(msg.data)
         number=np.where(freq_array > 0)[0][np.argmin(freq_array[freq_array > 0])]
-        #if self.number is not None:
-            #rospy.loginfo("The least occuring number is %s",number)
+        if self.number is not None:
+            rospy.loginfo("The least occuring number is %s",number)
         self.number = number
         return
 

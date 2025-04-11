@@ -1,3 +1,461 @@
+# #!/usr/bin/env python3
+# import rospy
+# import tf
+# import easyocr
+# import cv2
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from cv_bridge import CvBridge, CvBridgeError
+# from sensor_msgs.msg import CameraInfo, Image
+# from geometry_msgs.msg import PoseStamped
+# import message_filters
+# from std_msgs.msg import Int32MultiArray
+
+
+# class Image_segmentation:
+#     def __init__(self, rate=10):
+#         rospy.loginfo(f" Running rate: {rate}")
+#         self.bridge = CvBridge()
+#         self.rate = rospy.Rate(rate)
+#         self.detected_numbers_positions = {}
+#         self.processing = False
+
+#         # TODO: Fiddle with the following thresholds for better accuracy
+#         self.depth_thresh = 50 
+#         self.depth_thresh_close = 1 
+#         self.distance_thresh = 7.0
+#         self.margin = 10
+
+#         self.listener = tf.TransformListener()
+#         self.camera_info = rospy.wait_for_message("/front/rgb/camera_info", CameraInfo)
+#         self.img_frame = self.camera_info.header.frame_id
+
+#         # OCR configuration
+#         self.ocr_detector = easyocr.Reader(["en"], gpu=True)
+
+#         self.img_curr = None
+#         self.depth_curr = None
+#         self.rgb_sub = message_filters.Subscriber("/front/rgb/image_raw", Image)
+#         self.depth_sub = message_filters.Subscriber('/front/depth/image_raw', Image)
+
+#         #Publisher
+#         self.number_database = rospy.Publisher("/percep/numberData", Int32MultiArray, queue_size=1, latch=True)
+        
+#         self.ats = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.01)
+#         self.ats.registerCallback(self.synced_images_callback) 
+
+#     def synced_images_callback(self, rgb_data, depth_data):
+#         if self.processing:
+#             return
+        
+#         self.processing = True
+
+#         try:
+#             #rospy.loginfo(f"Received synced images: RGB shape={rgb_data.height}x{rgb_data.width}, encoding={rgb_data.encoding}")
+#             self.img_stamp = rgb_data.header.stamp
+
+#             #print("Converting ROS image to OpenCV image")
+#             self.img_curr = self.bridge.imgmsg_to_cv2(rgb_data, "bgr8")  # Changed to "bgr8" for consistency
+#             self.depth_curr = self.bridge.imgmsg_to_cv2(depth_data, desired_encoding="32FC1")
+#             #print(f"OpenCV image shape: {self.img_curr.shape}, Depth image shape: {self.depth_curr.shape}")
+
+#             detected_numbers = self.ocr_detection_tranfrom()
+#             #rospy.loginfo(f"The current number dictionary is this: {detected_numbers}")
+
+#         except CvBridgeError as e:
+#             print(f"CvBridge error: {e}")
+        
+#         finally: 
+#              self.processing = False
+    
+#     def ocr_detection_tranfrom(self): 
+#         """Detect all the numbers in the current frame
+#             Apply depth thresholding on all the BB and choose the close ones"""
+#         if self.img_curr is None:
+#                 rospy.logwarn("No image detected for processing..")
+#                 return
+#         #rospy.loginfo("Image detected, using ocr to detect numbers.....")
+#         result = self.ocr_detector.readtext(self.img_curr, batch_size=2, allowlist="0123456789")
+#         #rospy.loginfo("Numbers detected, proceeding to filter and transfrom.....")
+#         fx = self.camera_info.K[0]
+#         fy = self.camera_info.K[4]
+#         cx = self.camera_info.K[2]
+#         cy = self.camera_info.K[5]
+
+#         for detection in result:
+#             # detection[0]: the bounding box of the detected text
+#             # detection[1]: the detected text
+#             # detection[2]: the confidence of the detected text
+#             if len(detection[1]) > 1:  # not a single digit
+#                     continue
+#             if detection[2] < 0.99:
+#                     continue
+#             center = [(x + y) / 2 for x, y in zip(detection[0][0], detection[0][2])]
+#             x_center, y_center = int(center[0]), int(center[1])
+
+#             if 0 <= y_center < self.depth_curr.shape[0] and 0 <= x_center < self.depth_curr.shape[1]:
+#                 depth = self.depth_curr[y_center, x_center]
+
+#                 if not np.isfinite(depth) or depth < self.depth_thresh_close or depth > self.depth_thresh:
+#                     #rospy.logwarn(f"Invalid or out-of-range depth at ({x_center}, {y_center}): {depth}")
+#                     continue
+            
+#             if (
+#                 x_center < self.margin or x_center > self.img_curr.shape[1] - self.margin or
+#                 y_center < self.margin or y_center > self.img_curr.shape[0] - self.margin
+#             ):
+#                 rospy.logdebug(f"Skipping digit at edge: ({x_center}, {y_center})")
+#                 continue
+            
+#             if detection[1] in {"0"}:
+#                 continue
+
+#             #rospy.loginfo("Close number detected, proceeding to transform coordinates and perform checks!!!!")
+#             X = (x_center - cx) * depth / fx
+#             Y = (y_center - cy) * depth / fy
+
+#             Z = depth - 1.0  # Subtract 1.0 to avoid collision with the target
+#             if Z < 0:
+#                 Z = 0.0
+            
+#             transformed_pose = None
+#             p_in_cam = PoseStamped()
+#             p_in_cam.header.frame_id = self.img_frame
+#             p_in_cam.pose.position.x = X
+#             p_in_cam.pose.position.y = Y
+#             p_in_cam.pose.position.z = Z
+#             p_in_cam.pose.orientation.w = 1
+
+#             try:
+#                 self.listener.waitForTransform("map", self.img_frame, self.img_stamp, rospy.Duration(1.0))
+#                 transformed_pose = self.listener.transformPose("map", p_in_cam)
+#                 #rospy.loginfo("Transformed to 'map' frame")
+
+#             except tf.Exception as e_map:
+#                 # rospy.logwarn(f"TF error transforming to 'map': {e_map}")
+
+#                 try:
+#                     self.listener.waitForTransform("odom", self.img_frame, self.img_stamp, rospy.Duration(1))
+#                     transformed_pose = self.listener.transformPose("odom", p_in_cam)
+#                     #rospy.loginfo("Transformed to 'odom' frame")
+                
+#                 except tf.Exception as e_odom:
+#                     #rospy.logerr(f"TF error transforming to both 'map' and 'odom'. Skipping this detection.")
+#                     continue
+            
+#             X,Y,Z = transformed_pose.pose.position.x, transformed_pose.pose.position.y, transformed_pose.pose.position.z
+
+#             """Now that you have transformed pose - store it in dictionary along with the number!!"""
+#             # rospy.loginfo("The odom position of this BB is  x={}, y={}, z={}".format(
+#             # transformed_pose.pose.position.x,
+#             # transformed_pose.pose.position.y,
+#             # transformed_pose.pose.position.z))
+
+#             if detection[1].isdigit() and 0 <= int(detection[1]) <= 9:
+#                 number = int(detection[1])
+#             else:
+#                 continue
+            
+#             if number not in self.detected_numbers_positions:
+#                 self.detected_numbers_positions[number] = []
+
+#             already_seen = False
+#             for pos in self.detected_numbers_positions[number]:
+#                 dist = np.linalg.norm([pos[0] - X, pos[1] - Y, pos[2] - Z])
+#                 if dist < self.distance_thresh:
+#                     already_seen = True
+#                     break
+            
+#             if already_seen:
+#                 #rospy.loginfo(f"Number:{number} at ({X:.2f}, {Y:.2f}, {Z:.2f}) already detected. Skipping.")
+#                 continue
+            
+#             self.detected_numbers_positions[number].append((X, Y, Z))
+#             rospy.loginfo(f"New: {number} detected at ({X:.2f}, {Y:.2f}, {Z:.2f}), processing...")
+#             rospy.loginfo(self.detected_numbers_positions)
+
+#             self.num_freq_pub(self.detected_numbers_positions)
+
+#         return self.detected_numbers_positions
+    
+#     def num_freq_pub(self, detected_numbers):
+#         result = [0]*10
+#         for key, value in detected_numbers.items():
+#             result[key] = len(value)
+#         number_msg = Int32MultiArray()
+#         number_msg.data = result
+
+#         self.number_database.publish(number_msg)
+#         return
+
+
+
+#     def run(self):
+#         while not rospy.is_shutdown():
+#             rospy.spin()
+        
+
+# if __name__ == '__main__':
+#     try:
+#         rospy.init_node('visual_perception')
+#         v = Image_segmentation()
+#         v.run()
+#     except rospy.ROSInterruptException:
+#         rospy.loginfo("Shutting down visual node.")
+
+
+# #!/usr/bin/env python3
+# import rospy
+# import tf
+# import easyocr
+# import cv2
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from cv_bridge import CvBridge, CvBridgeError
+# from sensor_msgs.msg import CameraInfo, Image
+# from geometry_msgs.msg import PoseStamped
+# import message_filters
+# from std_msgs.msg import Int32MultiArray
+
+
+# class Image_segmentation:
+#     def __init__(self, rate=10):
+#         rospy.loginfo(f" Running rate: {rate}")
+#         self.bridge = CvBridge()
+#         self.rate = rospy.Rate(rate)
+#         self.detected_numbers_positions = {}
+#         self.processing = False
+
+#         # TODO: Fiddle with the following thresholds for better accuracy
+#         self.depth_thresh = 8
+#         self.depth_thresh_close = 1 
+#         self.distance_thresh = 4.0
+#         self.margin = 10
+#         self.too_close_thresh = 0.45 # checks against all the numbers!!
+
+#         self.listener = tf.TransformListener()
+#         self.camera_info = rospy.wait_for_message("/front/rgb/camera_info", CameraInfo)
+#         self.img_frame = self.camera_info.header.frame_id
+
+#         # OCR configuration
+#         self.ocr_detector = easyocr.Reader(["en"], gpu=True)
+
+#         self.img_curr = None
+#         self.depth_curr = None
+#         self.rgb_sub = message_filters.Subscriber("/front/rgb/image_raw", Image)
+#         self.depth_sub = message_filters.Subscriber('/front/depth/image_raw', Image)
+
+#         #Publisher
+#         self.number_database = rospy.Publisher("/percep/numberData", Int32MultiArray, queue_size=1, latch=True)
+#         self.image_pub = rospy.Publisher("/percep/annotated_image", Image, queue_size=1) # For debugging
+
+        
+#         self.ats = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.01)
+#         self.ats.registerCallback(self.synced_images_callback) 
+
+#     def synced_images_callback(self, rgb_data, depth_data):
+#         if self.processing:
+#             return
+        
+#         self.processing = True
+
+#         try:
+#             #rospy.loginfo(f"Received synced images: RGB shape={rgb_data.height}x{rgb_data.width}, encoding={rgb_data.encoding}")
+#             self.img_stamp = rgb_data.header.stamp
+
+#             #print("Converting ROS image to OpenCV image")
+#             self.img_curr = self.bridge.imgmsg_to_cv2(rgb_data, "bgr8")  # Changed to "bgr8" for consistency
+#             self.depth_curr = self.bridge.imgmsg_to_cv2(depth_data, desired_encoding="32FC1")
+#             #print(f"OpenCV image shape: {self.img_curr.shape}, Depth image shape: {self.depth_curr.shape}")
+
+#             detected_numbers = self.ocr_detection_tranfrom()
+#             #rospy.loginfo(f"The current number dictionary is this: {detected_numbers}")
+
+#         except CvBridgeError as e:
+#             print(f"CvBridge error: {e}")
+        
+#         finally: 
+#              self.processing = False
+    
+#     def visualize(self, result):
+#         image_copy = self.img_curr.copy()
+#         for detection in result:
+#             bbox, number, conf = detection
+#             if len(number) > 1 or conf < 0.99:
+#                 continue
+#             x_coords = [int(point[0]) for point in bbox]
+#             y_coords = [int(point[1]) for point in bbox]
+#             top_left = (min(x_coords), min(y_coords))
+#             bottom_right = (max(x_coords), max(y_coords))
+
+#             cv2.rectangle(image_copy, top_left, bottom_right, (0, 255, 0), 2)
+#             cv2.putText(image_copy, number, (top_left[0], top_left[1] - 10),
+#                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+            
+#         try:
+#             img_msg = self.bridge.cv2_to_imgmsg(image_copy, encoding="bgr8")
+#             self.image_pub.publish(img_msg)
+#         except CvBridgeError as e:
+#             rospy.logerr(f"Failed to convert/publish image: {e}")
+#         return
+            
+
+
+    
+#     def ocr_detection_tranfrom(self): 
+#         """Detect all the numbers in the current frame
+#             Apply depth thresholding on all the BB and choose the close ones"""
+#         if self.img_curr is None:
+#                 rospy.logwarn("No image detected for processing..")
+#                 return
+#         #rospy.loginfo("Image detected, using ocr to detect numbers.....")
+#         result = self.ocr_detector.readtext(self.img_curr, batch_size=2, allowlist="0123456789")
+#         self.visualize(result)
+#         #rospy.loginfo("Numbers detected, proceeding to filter and transfrom.....")
+#         fx = self.camera_info.K[0]
+#         fy = self.camera_info.K[4]
+#         cx = self.camera_info.K[2]
+#         cy = self.camera_info.K[5]
+
+#         for detection in result:
+#             # detection[0]: the bounding box of the detected text
+#             # detection[1]: the detected text
+#             # detection[2]: the confidence of the detected text
+#             if len(detection[1]) > 1:  # not a single digit
+#                     continue
+#             if detection[2] < 0.99:
+#                     continue
+#             center = [(x + y) / 2 for x, y in zip(detection[0][0], detection[0][2])]
+#             x_center, y_center = int(center[0]), int(center[1])
+
+#             if 0 <= y_center < self.depth_curr.shape[0] and 0 <= x_center < self.depth_curr.shape[1]:
+#                 depth = self.depth_curr[y_center, x_center]
+
+#                 if not np.isfinite(depth) or depth < self.depth_thresh_close or depth > self.depth_thresh:
+#                     #rospy.logwarn(f"Invalid or out-of-range depth at ({x_center}, {y_center}): {depth}")
+#                     continue
+            
+#             if (
+#                 x_center < self.margin or x_center > self.img_curr.shape[1] - self.margin or
+#                 y_center < self.margin or y_center > self.img_curr.shape[0] - self.margin
+#             ):
+#                 rospy.logdebug(f"Skipping digit at edge: ({x_center}, {y_center})")
+#                 continue
+            
+#             if detection[1] in {"0"}:
+#                 continue
+
+#             #rospy.loginfo("Close number detected, proceeding to transform coordinates and perform checks!!!!")
+#             X = (x_center - cx) * depth / fx
+#             Y = (y_center - cy) * depth / fy
+
+#             Z = depth - 1.0  # Subtract 1.0 to avoid collision with the target
+#             if Z < 0:
+#                 Z = 0.0
+            
+#             transformed_pose = None
+#             p_in_cam = PoseStamped()
+#             p_in_cam.header.frame_id = self.img_frame
+#             p_in_cam.pose.position.x = X
+#             p_in_cam.pose.position.y = Y
+#             p_in_cam.pose.position.z = Z
+#             p_in_cam.pose.orientation.w = 1
+
+#             try:
+#                 self.listener.waitForTransform("map", self.img_frame, self.img_stamp, rospy.Duration(1.0))
+#                 transformed_pose = self.listener.transformPose("map", p_in_cam)
+#                 #rospy.loginfo("Transformed to 'map' frame")
+
+#             except tf.Exception as e_map:
+#                 # rospy.logwarn(f"TF error transforming to 'map': {e_map}")
+
+#                 try:
+#                     self.listener.waitForTransform("odom", self.img_frame, self.img_stamp, rospy.Duration(1))
+#                     transformed_pose = self.listener.transformPose("odom", p_in_cam)
+#                     #rospy.loginfo("Transformed to 'odom' frame")
+                
+#                 except tf.Exception as e_odom:
+#                     #rospy.logerr(f"TF error transforming to both 'map' and 'odom'. Skipping this detection.")
+#                     continue
+            
+#             X,Y,Z = transformed_pose.pose.position.x, transformed_pose.pose.position.y, transformed_pose.pose.position.z
+
+#             """Now that you have transformed pose - store it in dictionary along with the number!!"""
+#             # rospy.loginfo("The odom position of this BB is  x={}, y={}, z={}".format(
+#             # transformed_pose.pose.position.x,
+#             # transformed_pose.pose.position.y,
+#             # transformed_pose.pose.position.z))
+
+#             if detection[1].isdigit() and 0 <= int(detection[1]) <= 9:
+#                 number = int(detection[1])
+#             else:
+#                 continue
+            
+#             if number not in self.detected_numbers_positions:
+#                 self.detected_numbers_positions[number] = []
+
+#             already_seen = False
+#             for pos in self.detected_numbers_positions[number]:
+#                 dist = np.linalg.norm([pos[0] - X, pos[1] - Y, pos[2] - Z])
+#                 if dist < self.distance_thresh:
+#                     already_seen = True
+#                     break
+            
+#             if already_seen:
+#                 #rospy.loginfo(f"Number:{number} at ({X:.2f}, {Y:.2f}, {Z:.2f}) already detected. Skipping.")
+#                 continue
+            
+#             too_close_to_other_number = False
+
+#             for other_number, positions in self.detected_numbers_positions.items():
+#                 if other_number == number:
+#                     continue  # already checked above
+#                 for pos in positions:
+#                     dx = abs(pos[0] - X)
+#                     dy = abs(pos[1] - Y)
+#                     if dx < self.too_close_thresh and dy < self.too_close_thresh:
+#                         too_close_to_other_number = True
+#                         break
+#                 if too_close_to_other_number:
+#                     break
+
+#             if too_close_to_other_number:
+#                 rospy.loginfo(f"Detection {number} is too close to another number. Ignoring.")
+#                 continue
+
+#             self.detected_numbers_positions[number].append((X, Y, Z))
+#             rospy.loginfo(f"New: {number} detected at ({X:.2f}, {Y:.2f}, {Z:.2f}), processing...")
+#             rospy.loginfo(self.detected_numbers_positions)
+
+#             self.num_freq_pub(self.detected_numbers_positions)
+
+#         return self.detected_numbers_positions
+    
+#     def num_freq_pub(self, detected_numbers):
+#         result = [0]*10
+#         for key, value in detected_numbers.items():
+#             result[key] = len(value)
+#         number_msg = Int32MultiArray()
+#         number_msg.data = result
+
+#         self.number_database.publish(number_msg)
+#         return
+
+
+
+#     def run(self):
+#         while not rospy.is_shutdown():
+#             rospy.spin()
+        
+
+# if __name__ == '__main__':
+#     try:
+#         rospy.init_node('visual_perception')
+#         v = Image_segmentation()
+#         v.run()
+#     except rospy.ROSInterruptException:
+#         rospy.loginfo("Shutting down visual node.")
+
 #!/usr/bin/env python3
 import rospy
 import tf
@@ -21,10 +479,11 @@ class Image_segmentation:
         self.processing = False
 
         # TODO: Fiddle with the following thresholds for better accuracy
-        self.depth_thresh = 100 
-        self.depth_thresh_close = 1 
-        self.distance_thresh = 7.0
+        self.depth_thresh = 5.0
+        self.depth_thresh_close = 1.0 
+        self.distance_thresh = 4.0
         self.margin = 10
+        self.too_close_thresh = 0.45 # checks against all the numbers!!
 
         self.listener = tf.TransformListener()
         self.camera_info = rospy.wait_for_message("/front/rgb/camera_info", CameraInfo)
@@ -40,6 +499,8 @@ class Image_segmentation:
 
         #Publisher
         self.number_database = rospy.Publisher("/percep/numberData", Int32MultiArray, queue_size=1, latch=True)
+        self.image_pub = rospy.Publisher("/percep/annotated_image", Image, queue_size=1) # For debugging
+
         
         self.ats = message_filters.ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub], 10, 0.01)
         self.ats.registerCallback(self.synced_images_callback) 
@@ -68,6 +529,47 @@ class Image_segmentation:
         finally: 
              self.processing = False
     
+    def visualize(self, result):
+        image_copy = self.img_curr.copy()
+        for detection in result:
+            bbox, number, conf = detection
+            if len(number) > 1 or conf < 0.99:
+                continue
+            x_coords = [int(point[0]) for point in bbox]
+            y_coords = [int(point[1]) for point in bbox]
+            top_left = (min(x_coords), min(y_coords))
+            bottom_right = (max(x_coords), max(y_coords))
+            x_center = int(sum(x_coords) / len(x_coords))
+            y_center = int(sum(y_coords) / len(y_coords))
+
+            if (
+                0 <= y_center < self.depth_curr.shape[0]
+                and 0 <= x_center < self.depth_curr.shape[1]
+            ):
+                depth = self.depth_curr[y_center, x_center]
+                if (
+                    not np.isfinite(depth)
+                    or depth < self.depth_thresh_close
+                    or depth > self.depth_thresh
+                ):
+                    continue 
+            else:
+                continue
+
+            cv2.rectangle(image_copy, top_left, bottom_right, (0, 255, 0), 2)
+            cv2.putText(image_copy, number, (top_left[0], top_left[1] - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+            
+        try:
+            img_msg = self.bridge.cv2_to_imgmsg(image_copy, encoding="bgr8")
+            self.image_pub.publish(img_msg)
+        except CvBridgeError as e:
+            rospy.logerr(f"Failed to convert/publish image: {e}")
+        return
+            
+
+
+    
     def ocr_detection_tranfrom(self): 
         """Detect all the numbers in the current frame
             Apply depth thresholding on all the BB and choose the close ones"""
@@ -76,6 +578,7 @@ class Image_segmentation:
                 return
         #rospy.loginfo("Image detected, using ocr to detect numbers.....")
         result = self.ocr_detector.readtext(self.img_curr, batch_size=2, allowlist="0123456789")
+        self.visualize(result)
         #rospy.loginfo("Numbers detected, proceeding to filter and transfrom.....")
         fx = self.camera_info.K[0]
         fy = self.camera_info.K[4]
@@ -129,7 +632,7 @@ class Image_segmentation:
             try:
                 self.listener.waitForTransform("map", self.img_frame, self.img_stamp, rospy.Duration(1.0))
                 transformed_pose = self.listener.transformPose("map", p_in_cam)
-                #rospy.loginfo("Transformed to 'map' frame")
+                # rospy.loginfo("Transformed to 'map' frame")
 
             except tf.Exception as e_map:
                 # rospy.logwarn(f"TF error transforming to 'map': {e_map}")
@@ -137,10 +640,10 @@ class Image_segmentation:
                 try:
                     self.listener.waitForTransform("odom", self.img_frame, self.img_stamp, rospy.Duration(1))
                     transformed_pose = self.listener.transformPose("odom", p_in_cam)
-                    #rospy.loginfo("Transformed to 'odom' frame")
+                    rospy.loginfo("Transformed to 'odom' frame")
                 
                 except tf.Exception as e_odom:
-                    #rospy.logerr(f"TF error transforming to both 'map' and 'odom'. Skipping this detection.")
+                    rospy.logerr(f"TF error transforming to both 'map' and 'odom'. Skipping this detection.")
                     continue
             
             X,Y,Z = transformed_pose.pose.position.x, transformed_pose.pose.position.y, transformed_pose.pose.position.z
@@ -170,6 +673,24 @@ class Image_segmentation:
                 #rospy.loginfo(f"Number:{number} at ({X:.2f}, {Y:.2f}, {Z:.2f}) already detected. Skipping.")
                 continue
             
+            too_close_to_other_number = False
+
+            for other_number, positions in self.detected_numbers_positions.items():
+                if other_number == number:
+                    continue  # already checked above
+                for pos in positions:
+                    dx = abs(pos[0] - X)
+                    dy = abs(pos[1] - Y)
+                    if dx < self.too_close_thresh or dy < self.too_close_thresh:
+                        too_close_to_other_number = True
+                        break
+                if too_close_to_other_number:
+                    break
+
+            if too_close_to_other_number:
+                rospy.loginfo(f"Detection {number} is too close to another number. Ignoring.")
+                continue
+
             self.detected_numbers_positions[number].append((X, Y, Z))
             rospy.loginfo(f"New: {number} detected at ({X:.2f}, {Y:.2f}, {Z:.2f}), processing...")
             rospy.loginfo(self.detected_numbers_positions)
@@ -202,7 +723,19 @@ if __name__ == '__main__':
         v.run()
     except rospy.ROSInterruptException:
         rospy.loginfo("Shutting down visual node.")
+            
 
+        
+            
+            
+
+        
+        
+    
+            
+
+        
+        
     
             
 

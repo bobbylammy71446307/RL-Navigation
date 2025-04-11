@@ -15,7 +15,7 @@ const int NUM_BOX_TYPES = 4;
 const int MIN_X_COORD = 2.0;
 const int MIN_Y_COORD = 11.0;
 const int MAX_X_COORD = 22.0;
-const int MAX_Y_COORD = 19.0;
+const int MAX_Y_COORD = 18.9;
 const int Z_COORD = 3.0;
 
 ObjectSpawner::ObjectSpawner() : WorldPlugin() {};
@@ -63,6 +63,7 @@ void ObjectSpawner::spawnRandomBridge()
 void ObjectSpawner::spawnRandomBoxes()
 {
   std::srand(std::time(0));
+
   this->box_names.clear();
   this->box_points.clear();
   this->box_markers_msg_.markers.clear();

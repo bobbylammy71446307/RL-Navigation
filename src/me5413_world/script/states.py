@@ -123,7 +123,7 @@ class Task2_exploration(smach.State):
         smach.State.__init__(self,outcomes=['goal_reached','failed','stopped'])
         self.robot=Jackal_Robot()
         self.waypoint_list=waypoint_list
-        self.start_waypoint=[19, -21, 0.0, 0.0, 0.0, -1.0, 0.0]
+        self.start_waypoint=[19.0, -21, 0.0, 0.0, 0.0, -1.0, 0.0]
         self.waypoint_num=1
     
     def execute(self,userdata):
@@ -151,10 +151,10 @@ class Task2_exploration(smach.State):
                         return 'failed'
 
                     rospy.sleep(0.01)
-                if waypoint[0] == 19:
-                    waypoint[0] = 10
+                if waypoint[0] == 19.0:
+                    waypoint[0] = 9.8
                 else:
-                    waypoint[0] = 19
+                    waypoint[0] = 19.0
                 waypoint[1] += 1.5
                 self.waypoint_num+=1
             
@@ -181,7 +181,7 @@ class Task3_move_to_bridge(smach.State):
         self.data_received = msg
 
     def extract_msg(self,msg):
-        return [9, msg.point.y, 0,0,0,-1,0]
+        return [10, msg.point.y + 0.1,0,0,0,-1,0]
         
 
     def execute(self,userdata):
@@ -256,7 +256,7 @@ class Task4_unlock_bridge(smach.State):
             self.publisher.publish(self.ros_msg)
             rospy.loginfo("Published message to topic:/cmd_open_bridge")
             rospy.sleep(0.05)  # Wait for a moment to ensure the message is received
-            while self.current_pose is None or self.current_pose > 5:
+            while self.current_pose is None or self.current_pose > 4.5:
                 self.robot.move_forward(vel_x=0.7)
                 self.current_pose=self.get_current_x_position()
                 rospy.sleep(0.1)
@@ -297,7 +297,7 @@ class Task5_choose_box(smach.State):
                         rospy.sleep(2)
                         break
                 if self.box_y_coordinate is not None:
-                    self.robot.send_goal([1.8,self.box_y_coordinate,0,0,0,-1,0])
+                    self.robot.send_goal([1.2,self.box_y_coordinate,0,0,0,0,1])
                     break
                 else:
                     continue
