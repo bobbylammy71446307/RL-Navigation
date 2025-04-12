@@ -9,6 +9,7 @@ NUS ME5413 Autonomous Mobile Robotics Final Project
 ![Python](https://img.shields.io/badge/Code-Python-informational?style=flat&logo=Python&logoColor=white&color=2bbc8a)
 
 ![cover_image](src/me5413_world/media/gz_world.png)
+[![Watch the video](media/thumbnail.png)](https://www.youtube.com/watch?v=4XAWQVB_mV8)
 
 ## Dependencies
 
