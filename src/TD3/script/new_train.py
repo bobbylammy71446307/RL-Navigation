@@ -311,6 +311,8 @@ while timestep < max_timesteps:
 
         state = env.reset()
         done = False
+        print("Episode ", episode_num)
+        print("evaluation timestep left",eval_freq-timesteps_since_eval)
 
         episode_reward = 0
         episode_timesteps = 0

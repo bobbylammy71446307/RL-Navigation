@@ -11,7 +11,7 @@ import sensor_msgs.point_cloud2 as pc2
 from gazebo_msgs.msg import ModelState
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import LaserScan
 from squaternion import Quaternion
 from std_srvs.srv import Empty
 from visualization_msgs.msg import Marker
@@ -20,7 +20,7 @@ from gazebo_msgs.srv import SetModelState
 import tf
 
 GOAL_REACHED_DIST = 0.3
-COLLISION_DIST = 0.88
+COLLISION_DIST = 0.4
 TIME_DELTA = 0.1
 
 
@@ -38,7 +38,7 @@ class GazeboEnv:
 
         self.upper = 5.0
         self.lower = -5.0
-        self.velodyne_data = np.ones(self.environment_dim) * 10
+        self.laser_data = np.ones(self.environment_dim) * 10
         self.last_odom = None
 
         self.set_self_state = ModelState()
@@ -80,8 +80,8 @@ class GazeboEnv:
         self.publisher = rospy.Publisher("goal_point", MarkerArray, queue_size=3)
         self.publisher2 = rospy.Publisher("linear_velocity", MarkerArray, queue_size=1)
         self.publisher3 = rospy.Publisher("angular_velocity", MarkerArray, queue_size=1)
-        self.velodyne = rospy.Subscriber(
-            "/mid/points", PointCloud2, self.velodyne_callback, queue_size=1
+        self.laser_sub = rospy.Subscriber(
+            "front/scan", LaserScan, self.laser_callback, queue_size=1
         )
 
 
@@ -91,28 +91,33 @@ class GazeboEnv:
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
     # range as state representation
-    def velodyne_callback(self, v):
-        data = list(pc2.read_points(v, skip_nans=False, field_names=("x", "y", "z")))
-        self.velodyne_data = np.ones(self.environment_dim) * 10
-        for i in range(len(data)):
-            if data[i][2] > 0.1:
-                dot = data[i][0] * 1 + data[i][1] * 0
-                mag1 = math.sqrt(math.pow(data[i][0], 2) + math.pow(data[i][1], 2))
-                mag2 = math.sqrt(math.pow(1, 2) + math.pow(0, 2))
-                beta = math.acos(dot / (mag1 * mag2)) * np.sign(data[i][1])
-                dist = math.sqrt(data[i][0] ** 2 + data[i][1] ** 2)
+    def laser_callback(self, scan_msg):
+        self.laser_data = np.ones(self.environment_dim) * 10  # Initialize with large values
 
-                for j in range(len(self.gaps)):
-                    if self.gaps[j][0] <= beta < self.gaps[j][1]:
-                        self.velodyne_data[j] = min(self.velodyne_data[j], dist)
-                        break
+        angle = scan_msg.angle_min
+        for i, dist in enumerate(scan_msg.ranges):
+            if scan_msg.range_min < dist < scan_msg.range_max:
+                x = dist * math.cos(angle)
+                y = dist * math.sin(angle)
+
+                # Ignore points behind or very close to the sensor
+                if x > 0.1:
+                    dot = x * 1 + y * 0
+                    mag1 = math.sqrt(x**2 + y**2)
+                    mag2 = 1  # magnitude of (1, 0)
+                    beta = math.acos(dot / (mag1 * mag2)) * np.sign(y)
+
+                    for j in range(len(self.gaps)):
+                        if self.gaps[j][0] <= beta < self.gaps[j][1]:
+                            self.laser_data[j] = min(self.laser_data[j], dist)
+                            break
+            angle += scan_msg.angle_increment
 
     def odom_callback(self, od_data):
         self.last_odom = od_data
 
     # Perform an action and read a new state
     def step(self, action):
-        print("perform action")
         target = False
 
         # Publish the robot action
@@ -139,9 +144,9 @@ class GazeboEnv:
             print("/gazebo/pause_physics service call failed")
 
         # read velodyne laser state
-        done, collision, min_laser = self.observe_collision(self.velodyne_data)
+        done, collision, min_laser = self.observe_collision(self.laser_data)
         v_state = []
-        v_state[:] = self.velodyne_data[:]
+        v_state[:] = self.laser_data[:]
         laser_state = [v_state]
 
         # Calculate robot heading from odometry data
@@ -186,14 +191,14 @@ class GazeboEnv:
             target = True
             done = True
 
+        delta_position=math.sqrt(self.odom_x**2+self.odom_y**2)
         robot_state = [distance, theta, action[0], action[1]]
         state = np.append(laser_state, robot_state)
-        reward = self.get_reward(target, collision, action, min_laser)
+        reward = self.get_reward(target, collision, action, min_laser,delta_position)
 
         return state, reward, done, target
 
     def reset(self):
-        print("reset")
         self.respawn_jackal()
         angle = np.random.uniform(-np.pi, np.pi)
         quaternion = Quaternion.from_euler(0.0, 0.0, angle)
@@ -220,7 +225,7 @@ class GazeboEnv:
         except (rospy.ServiceException) as e:
             print("/gazebo/pause_physics service call failed")
         v_state = []
-        v_state[:] = self.velodyne_data[:]
+        v_state[:] = self.laser_data[:]
         laser_state = [v_state]
 
         distance = np.linalg.norm(
@@ -287,9 +292,7 @@ class GazeboEnv:
             # Then unpause physics
             rospy.wait_for_service('/gazebo/unpause_physics')
             rospy.ServiceProxy('/gazebo/unpause_physics', Empty)()
-            if result.success:
-                rospy.loginfo("Jackal respawned at initial position.")
-            else:
+            if not result.success:
                 rospy.logwarn("Failed to reset Jackal position.")
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s" % e)
@@ -361,17 +364,17 @@ class GazeboEnv:
     def observe_collision(laser_data):
         # Detect a collision from laser data
         min_laser = min(laser_data)
-        print("current distance:", min_laser)
         if min_laser < COLLISION_DIST:
             return True, True, min_laser
         return False, False, min_laser
 
     @staticmethod
-    def get_reward(target, collision, action, min_laser):
+    def get_reward(target, collision, action, min_laser,delta_position):
         if target:
             return 100.0
         elif collision:
             return -100.0
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2
+            movement_penalty = -100.0 if delta_position < 0.01 else 0.0  # Penalize if not moving
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 + movement_penalty
