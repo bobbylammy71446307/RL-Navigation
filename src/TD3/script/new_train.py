@@ -145,9 +145,10 @@ class TD3(object):
             next_action = self.actor_target(next_state)
 
             # Add noise to the action
-            noise = torch.Tensor(batch_actions).data.normal_(0, policy_noise).to(device)
-            noise = noise.clamp(-noise_clip, noise_clip)
-            next_action = (next_action + noise).clamp(-self.max_action, self.max_action)
+        
+            # noise = torch.Tensor(batch_actions).data.normal_(0, policy_noise).to(device)
+            # noise = noise.clamp(-noise_clip, noise_clip)
+            next_action = (next_action """+ noise""").clamp(-self.max_action, self.max_action)
 
             # Calculate the Q values from the critic-target network for the next state-action pair
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
@@ -311,8 +312,6 @@ while timestep < max_timesteps:
 
         state = env.reset()
         done = False
-        print("Episode ", episode_num)
-        print("evaluation timestep left",eval_freq-timesteps_since_eval)
 
         episode_reward = 0
         episode_timesteps = 0

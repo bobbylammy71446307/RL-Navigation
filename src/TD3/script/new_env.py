@@ -9,7 +9,7 @@ import numpy as np
 import rospy
 import sensor_msgs.point_cloud2 as pc2
 from gazebo_msgs.msg import ModelState
-from geometry_msgs.msg import Twist, Pose
+from geometry_msgs.msg import Twist, Pose, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from squaternion import Quaternion
@@ -33,8 +33,11 @@ class GazeboEnv:
         self.odom_x = 0
         self.odom_y = 0
 
-        self.goal_x = 1
-        self.goal_y = 0.0
+        self.goal_x = -99
+        self.goal_y = -99
+
+        self.start_pos_x=0
+        self.start_pos_y=0
 
         self.upper = 5.0
         self.lower = -5.0
@@ -83,11 +86,13 @@ class GazeboEnv:
         self.laser_sub = rospy.Subscriber(
             "front/scan", LaserScan, self.laser_callback, queue_size=1
         )
-
+        self.listener = tf.TransformListener()
 
         self.odom = rospy.Subscriber(
             "/odometry/filtered", Odometry, self.odom_callback, queue_size=1
         )
+        self.reset_odom_pub=rospy.Publisher('/set_pose', PoseWithCovarianceStamped, queue_size=1)
+
 
     # Read velodyne pointcloud and turn it into distance data, then select the minimum value for each angle
     # range as state representation
@@ -150,8 +155,14 @@ class GazeboEnv:
         laser_state = [v_state]
 
         # Calculate robot heading from odometry data
-        self.odom_x = self.last_odom.pose.pose.position.x
-        self.odom_y = self.last_odom.pose.pose.position.y
+        try:
+            # Lookup transform from 'odom' to 'base_link'
+            (trans, rot) = self.listener.lookupTransform('/odom', '/base_link', rospy.Time(0))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            pass
+
+        self.odom_x = self.start_pos_x+self.last_odom.pose.pose.position.y 
+        self.odom_y = self.start_pos_y+self.last_odom.pose.pose.position.x 
         quaternion = Quaternion(
             self.last_odom.pose.pose.orientation.w,
             self.last_odom.pose.pose.orientation.x,
@@ -165,6 +176,7 @@ class GazeboEnv:
         distance = np.linalg.norm(
             [self.odom_x - self.goal_x, self.odom_y - self.goal_y]
         )
+        #print("odom",self.odom_x,self.odom_y)
 
         # Calculate the relative angle between the robots heading and heading toward the goal
         skew_x = self.goal_x - self.odom_x
@@ -190,24 +202,36 @@ class GazeboEnv:
         if distance < GOAL_REACHED_DIST:
             target = True
             done = True
+        print(self.odom_x,self.odom_y)
+        print("distance:", distance)
 
-        delta_position=math.sqrt(self.odom_x**2+self.odom_y**2)
+
         robot_state = [distance, theta, action[0], action[1]]
         state = np.append(laser_state, robot_state)
-        reward = self.get_reward(target, collision, action, min_laser,delta_position)
+        reward = self.get_reward(target, collision, action, min_laser,distance)
 
         return state, reward, done, target
 
     def reset(self):
-        self.respawn_jackal()
+        valid=False
+        while valid==False:
+            y=np.random.uniform(-0.5,22)
+            if 21<=y<=22:
+                x=np.random.uniform(-0.5,22)
+            else:
+                x=np.random.uniform(-0.8,0.8)
+            if [y,x] not in [[22,5],[22,8],[21,8],[22,9],[21,9],[22,10],[21,10],[22,15],[22,18]]:
+                valid=True
+        self.respawn_jackal(x,y)
+        self.start_pos_x=x
+        self.start_pos_y=y
+        print("jackal spawned at", x,y)
         angle = np.random.uniform(-np.pi, np.pi)
-        quaternion = Quaternion.from_euler(0.0, 0.0, angle)
-        object_state = self.set_self_state
-        self.odom_x = 0
-        self.odom_y = 0
-
+        self.reset_odom()
         # set a random goal in empty space in environment
-        self.change_goal()
+        self.change_goal(x,y)
+        print("goal set at", self.goal_x,self.goal_y)
+
         # randomly scatter boxes in the environment
         self.publish_markers([0.0, 0.0])
 
@@ -258,19 +282,50 @@ class GazeboEnv:
         state = np.append(laser_state, robot_state)
         return state
 
-    def change_goal(self):
-        self.goal_x = 20
-        self.goal_y =-20
+    def change_goal(self,x,y):
+        self.goal_x=-99
+        self.goal_y=-99
+        if 21<=y<=22:
+            self.goal_y=y
+            while not 0<=self.goal_x<=22:
+                if np.random.rand() < 0.5:
+                    rand = np.random.uniform(-4, -2)
+                else:
+                    rand = np.random.uniform(2, 4)
+                self.goal_x=x+rand
+                # self.goal_x=x+np.random.uniform(2, 4)
+        else:
+            while not 0<=self.goal_y<=22:
+                if np.random.rand() < 0.5:
+                    rand = np.random.uniform(-4, -2)
+                else:
+                    rand = np.random.uniform(2, 4)
+                self.goal_y=y+rand
+                #self.goal_y=y+np.random.uniform(2, 4)
+            self.goal_x=x
 
-    def respawn_jackal(self):
+
+    def reset_odom(self,x=0,y=0):
+        msg = PoseWithCovarianceStamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = "odom"  # or "map", depending on your config
+
+        msg.pose.pose.position.x = 0
+        msg.pose.pose.position.y = 0
+        msg.pose.pose.position.z = 0.0
+        msg.pose.pose.orientation.w = 1.0
+        self.reset_odom_pub.publish(msg)
+
+
+    def respawn_jackal(self,x,y):
         rospy.wait_for_service('/gazebo/set_model_state')
         try:
             set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
             yaw = 1.5708  # radians
             quat = Quaternion.from_euler(0.0, 0.0, yaw)
             initial_pose = Pose()
-            initial_pose.position.x = 0.0  
-            initial_pose.position.y = 0.0
+            initial_pose.position.x = x
+            initial_pose.position.y = y
             initial_pose.position.z = 3
             initial_pose.orientation = Quaternion(*quat)
 
@@ -369,12 +424,11 @@ class GazeboEnv:
         return False, False, min_laser
 
     @staticmethod
-    def get_reward(target, collision, action, min_laser,delta_position):
+    def get_reward(target, collision, action, min_laser,distance):
         if target:
             return 100.0
         elif collision:
-            return -100.0
+            return -100
         else:
             r3 = lambda x: 1 - x if x < 1 else 0.0
-            movement_penalty = -100.0 if delta_position < 0.01 else 0.0  # Penalize if not moving
-            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 + movement_penalty
+            return action[0] / 2 - abs(action[1]) / 2 - r3(min_laser) / 2 
