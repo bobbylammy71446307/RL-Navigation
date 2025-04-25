@@ -1,9 +1,0 @@
-free_thresh: 0.196
-image: fused_map_3_3.pgm
-negate: 0
-occupied_thresh: 0.65
-origin:
-- -11.95
-- -38.35
-- 0.0
-resolution: 0.05
