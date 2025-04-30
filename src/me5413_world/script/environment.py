@@ -24,6 +24,9 @@ GOAL_REACHED_DIST = 0.3
 COLLISION_DIST = 0.4
 TIME_DELTA = 0.1
 
+odom_topic="/odometry/filtered"
+imu_topic="/imu/data"
+
 
 
 class GazeboEnv:
@@ -42,16 +45,6 @@ class GazeboEnv:
 
         self.laser_data = np.ones(self.environment_dim) * 10
         self.last_odom = None
-
-        self.set_self_state = ModelState()
-        self.set_self_state.model_name = "jackal"
-        self.set_self_state.pose.position.x = 0.0
-        self.set_self_state.pose.position.y = 0.0
-        self.set_self_state.pose.position.z = 0.0
-        self.set_self_state.pose.orientation.x = 0.0
-        self.set_self_state.pose.orientation.y = 0.0
-        self.set_self_state.pose.orientation.z = 0.0
-        self.set_self_state.pose.orientation.w = 1.0
 
         self.gaps = [[-np.pi / 2 - 0.03, -np.pi / 2 + np.pi / self.environment_dim]]
         for m in range(self.environment_dim - 1):
@@ -78,7 +71,7 @@ class GazeboEnv:
             "front/scan", LaserScan, self.laser_callback, queue_size=1
         )
         self.odom = rospy.Subscriber(
-            "/odometry/filtered", Odometry, self.odom_callback, queue_size=1
+            odom_topic, Odometry, self.odom_callback, queue_size=1
         )
         self.reset_odom_pub=rospy.Publisher('/set_pose', PoseWithCovarianceStamped, queue_size=1)
 
@@ -146,8 +139,8 @@ class GazeboEnv:
 
         # Calculate robot heading from odometry data
 
-        self.odom_x = self.start_pos_x+self.last_odom.pose.pose.position.y 
-        self.odom_y = self.start_pos_y+self.last_odom.pose.pose.position.x 
+        self.odom_x = self.last_odom.pose.pose.position.x
+        self.odom_y = self.last_odom.pose.pose.position.y
 
         quaternion = Quaternion(
             self.last_odom.pose.pose.orientation.w,
@@ -162,7 +155,7 @@ class GazeboEnv:
         distance = np.linalg.norm(
             [self.odom_x - self.goal_x, self.odom_y - self.goal_y]
         )
-        #print("odom",self.odom_x,self.odom_y)
+        print("odom",self.odom_x,self.odom_y)
 
         # Calculate the relative angle between the robots heading and heading toward the goal
         skew_x = self.goal_x - self.odom_x
@@ -189,7 +182,7 @@ class GazeboEnv:
             target = True
             done = True
         # print(self.odom_x,self.odom_y)
-        #print("distance:", distance)
+        # print("distance:", distance)
         #print("angle of robot", math.degrees(theta))
 
 
@@ -200,30 +193,25 @@ class GazeboEnv:
         return state, reward, done, target
 
     def reset(self):
-        valid=False
-        while valid==False:
-            y=np.random.uniform(-0.5,22)
-            if 21<=y<=22:
-                x=np.random.uniform(-0.5,22)
-            else:
-                x=np.random.uniform(-0.8,0.8)
-            if [y,x] not in [[22,5],[22,8],[21,8],[22,9],[21,9],[22,10],[21,10],[22,15],[22,18]]:
-                valid=True
+        x=np.random.uniform(-0.5,22)
+        if 21<=x<=22:
+            y=np.random.uniform(-22,0.5)
+        else:
+            y=np.random.uniform(-0.8,0.8)
         angle = np.random.uniform(-np.pi, np.pi)
         quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, angle)
+        quaternion_world=tf.transformations.quaternion_from_euler(0.0, 0.0, angle-np.pi/2)
+        # self.respawn(x,y,quaternion_world)
         self.respawn(x,y,quaternion)
-        self.start_pos_x=x
-        self.start_pos_y=y
         # print("jackal spawned at", x,y)
-        angle = np.random.uniform(-np.pi, np.pi)
-        self.reset_odom(quaternion)
+        self.reset_odom(x,y,quaternion)
         # set a random goal in empty space in environment
         self.change_goal(x,y)
-        # print("goal set at", self.goal_x,self.goal_y)
-
+        print("goal set at", self.goal_x,self.goal_y)
+        self.start_pos_x=self.last_odom.pose.pose.position.x if self.last_odom is not None else 0
+        self.start_pos_y=self.last_odom.pose.pose.position.y if self.last_odom is not None else 0
         # randomly scatter boxes in the environment
         #self.publish_markers([0.0, 0.0])
-
         rospy.wait_for_service("/gazebo/unpause_physics")
         try:
             self.unpause()
@@ -294,21 +282,25 @@ class GazeboEnv:
             self.goal_x=x
 
 
-    def reset_odom(self,quaternion):
+    def reset_odom(self,x,y,quaternion):
         msg = PoseWithCovarianceStamped()
         msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = "odom"  # or "map", depending on your config
+        msg.header.frame_id = "odom"  
+        msg.pose.pose.position.x = x
+        msg.pose.pose.position.y = y
+        msg.pose.pose.position.z = 2.6
         qx,qy,qz,qw=quaternion
-        msg.pose.pose.position.x = qx
-        msg.pose.pose.position.y = qy
-        msg.pose.pose.position.z = qz
+        msg.pose.pose.orientation.x = qx
+        msg.pose.pose.orientation.y = qy
+        msg.pose.pose.orientation.z = qz
         msg.pose.pose.orientation.w = qw
         self.reset_odom_pub.publish(msg)
 
 
     def respawn(self,jackal_x,jackal_y,jackal_quaternion):
         rospy.wait_for_service('/gazebo/set_model_state')
-        self.respawn_object("jackal",jackal_x,jackal_y,jackal_quaternion)
+        # self.respawn_object("jackal",-jackal_y,jackal_x,self.rotate_z(jackal_quaternion))
+        self.respawn_object("jackal",-jackal_y,jackal_x,jackal_quaternion)
         # rospy.sleep(0.1)
         self.respawn_object("person_standing",18,22,[4.999999583255033e-07, -5.000000416744966e-07, -0.7071063120935576, 0.7071072502792263])
         # rospy.sleep(0.1)
@@ -332,6 +324,15 @@ class GazeboEnv:
         model_state.pose.orientation.w = qw
         self.set_state.publish(model_state)
 
+    def rotate_z(self,quaternion,degree=-80):
+
+        radians = math.radians(degree)
+        half_angle = radians / 2.0
+        q_z = [0, 0, math.sin(half_angle), math.cos(half_angle)]
+
+        transformed_quaternion = tf.transformations.quaternion_multiply(q_z, quaternion)
+
+        return transformed_quaternion
 
     # def publish_markers(self, action):
     #     # Publish visual data in Rviz
@@ -417,4 +418,13 @@ class GazeboEnv:
 if __name__ == "__main__":
     env = GazeboEnv(20)
     time.sleep(1)
-    env.respawn(0, 0, [0, 0, 0, 1])
+    for i in range(-0,-180,-5):
+        print("the angle is",i)
+        radians = math.radians(i)
+        quart=tf.transformations.quaternion_from_euler(0.0, 0.0, radians)
+        env.respawn(20, 0.5, quart)
+        env.reset_odom(20,0.5, quart)
+        time.sleep(1)
+
+
+

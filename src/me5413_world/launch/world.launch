@@ -12,10 +12,24 @@
         <arg name="headless" value="false"/>
     </include>
 
+    <node pkg="tf" type="static_transform_publisher" name="static_odom_tf"
+          args="0 0 0 0 0 0 world odom 100" />
+    <include file="$(find me5413_world)/launch/ekf.launch"/>
+
     <!-- Add our jackal robot into the simulation -->
     <include file="$(find me5413_world)/launch/include/spawn_jackal.launch"/>
     
     <!-- Load the destination configuration -->
     <rosparam command="load" file="$(find me5413_world)/config/config.yaml" />
 
+    <!-- Load the EKF configuration -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find me5413_world)/rviz/rl.rviz" />
+    <node name="gazebo_ros_p3d" pkg="gazebo_ros" type="gazebo_ros_p3d" output="screen">
+        <param name="frameName" value="odom" />
+        <param name="odomFrame" value="odom" />
+        <param name="bodyName" value="base_link" />
+        <param name="topicName" value="odom" />
+        <param name="gaussianNoise" value="0.0" />
+        <param name="updateRate" value="50.0" />
+    </node>
 </launch>

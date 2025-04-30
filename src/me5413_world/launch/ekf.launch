@@ -1,0 +1,11 @@
+<launch>
+  <!-- Example: Launch EKF localization node -->
+  <node name="ekf_localization_node" pkg="robot_localization" type="ekf_node" output="screen">
+    <param name="imu0" value="/imu/data"/>
+    <param name="odom0" value="/jackal_velocity_controller/odom"/>
+    <param name="base_link_frame" value="base_link"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="world_frame" value="odom"/>
+    <param name="config_file" value="$(find me5413_world)/config/ekf.yaml"/>  <!-- Look for a file path here -->
+  </node>
+</launch>

@@ -1,4 +1,4 @@
-  <launch>
+<launch>
     <!-- Using the simulation clock -->
     <param name="/use_sim_time" value="true"/>
 
@@ -12,13 +12,19 @@
         <arg name="headless" value="false"/>
     </include>
 
+    <include file="$(find me5413_world)/launch/control.launch" />
+    <!-- <arg name="map_file" default="$(find me5413_world)/map/map.yaml"/>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+    <include file="$(find me5413_world)/launch/amcl.launch" /> -->
+
+
     <!-- Add our jackal robot into the simulation -->
     <include file="$(find me5413_world)/launch/include/spawn_jackal.launch"/>
     
     <!-- Load the destination configuration -->
     <rosparam command="load" file="$(find me5413_world)/config/config.yaml" />
 
-    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find me5413_world)/rviz/rl.rviz" output="log" respawn="true"/>
-
+    <!-- Load the EKF configuration -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find me5413_world)/rviz/rl.rviz" />
 </launch>
-
