@@ -1,11 +1,23 @@
 <launch>
-  <!-- Example: Launch EKF localization node -->
-  <node name="ekf_localization_node" pkg="robot_localization" type="ekf_node" output="screen">
-    <param name="imu0" value="/imu/data"/>
-    <param name="odom0" value="/jackal_velocity_controller/odom"/>
-    <param name="base_link_frame" value="base_link"/>
-    <param name="odom_frame" value="odom"/>
-    <param name="world_frame" value="odom"/>
-    <param name="config_file" value="$(find me5413_world)/config/ekf.yaml"/>  <!-- Look for a file path here -->
-  </node>
+  <arg name="enable_ekf" default="true"/>
+  
+  <group if="$(arg enable_ekf)">
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization" output="screen">
+      <rosparam command="load" file="$(find me5413_world)/config/ekf_control.yaml" />
+    </node>
+
+    <group if="$(optenv JACKAL_IMU_MICROSTRAIN 0)">
+      <rosparam>
+        ekf_localization:
+          imu1: microstrain/imu/data
+          imu1_config: [false, false, false,
+                        true, true, false,
+                        false, false, false,
+                        true, true, true,
+                        false, false, false]
+          imu1_differential: false
+      </rosparam>
+      <param name="ekf_localization/imu1" value="$(optenv JACKAL_IMU_MICROSTRAIN_NAME microstrain)/imu/data"/>
+    </group>
+  </group>
 </launch>
