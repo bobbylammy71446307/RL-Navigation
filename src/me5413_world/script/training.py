@@ -14,15 +14,16 @@ from network import *
 def evaluate(network, epoch, eval_episodes=5):
     avg_reward = 0.0
     col = 0
+    collision=True
     for _ in range(eval_episodes):
         count = 0
-        state = env.reset()
+        state = env.reset(collision)
         done = False
         prev_distance = None
         while not done and count < 501:
             action = network.get_action(np.array(state))
             a_in = [(action[0] + 1) / 2, action[1]]
-            state, reward, done, _ , _ ,distance= env.step(a_in,prev_distance)
+            state, reward, done, _ , collision ,distance= env.step(a_in,prev_distance)
             prev_distance=distance
             avg_reward += reward
             count += 1

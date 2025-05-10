@@ -184,7 +184,7 @@ class GazeboEnv:
         robot_state = [distance, theta, action[0], action[1]]
         state = np.append(laser_state, robot_state)
         reward = self.get_reward(target, collision, action, min_laser,distance,prev_distance)
-        if collision:
+        # if collision:
             # print("collision detected")
 
         return state, reward, done, target, collision, distance
