@@ -6,18 +6,18 @@
  
 **/
 
-#include "me5413_world/goal_publisher_node.hpp"
+#include "rl_world/goal_publisher_node.hpp"
 
-namespace me5413_world 
+namespace rl_world 
 {
 
 GoalPublisherNode::GoalPublisherNode() : tf2_listener_(tf2_buffer_)
 {
   this->pub_goal_ = nh_.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1);
-  this->pub_absolute_position_error_ = nh_.advertise<std_msgs::Float32>("/me5413_world/absolute/position_error", 1);
-  this->pub_absolute_heading_error_ = nh_.advertise<std_msgs::Float32>("/me5413_world/absolute/heading_error", 1);
-  this->pub_relative_position_error_ = nh_.advertise<std_msgs::Float32>("/me5413_world/relative/position_error", 1);
-  this->pub_relative_heading_error_ = nh_.advertise<std_msgs::Float32>("/me5413_world/relative/heading_error", 1);
+  this->pub_absolute_position_error_ = nh_.advertise<std_msgs::Float32>("/rl_world/absolute/position_error", 1);
+  this->pub_absolute_heading_error_ = nh_.advertise<std_msgs::Float32>("/rl_world/absolute/heading_error", 1);
+  this->pub_relative_position_error_ = nh_.advertise<std_msgs::Float32>("/rl_world/relative/position_error", 1);
+  this->pub_relative_heading_error_ = nh_.advertise<std_msgs::Float32>("/rl_world/relative/heading_error", 1);
 
   this->timer_ = nh_.createTimer(ros::Duration(0.2), &GoalPublisherNode::timerCallback, this);
   this->sub_robot_odom_ = nh_.subscribe("/gazebo/ground_truth/state", 1, &GoalPublisherNode::robotOdomCallback, this);
@@ -184,10 +184,10 @@ geometry_msgs::PoseStamped GoalPublisherNode::getGoalPoseFromConfig(const std::s
    */
 
   double x, y, yaw;
-  nh_.getParam("/me5413_world" + name + "/x", x);
-  nh_.getParam("/me5413_world" + name + "/y", y);
-  nh_.getParam("/me5413_world" + name + "/yaw", yaw);
-  nh_.getParam("/me5413_world/frame_id", this->world_frame_);
+  nh_.getParam("/rl_world" + name + "/x", x);
+  nh_.getParam("/rl_world" + name + "/y", y);
+  nh_.getParam("/rl_world" + name + "/yaw", yaw);
+  nh_.getParam("/rl_world/frame_id", this->world_frame_);
 
   tf2::Quaternion q;
   q.setRPY(0, 0, yaw);
@@ -225,12 +225,12 @@ std::pair<double, double> GoalPublisherNode::calculatePoseError(const geometry_m
   return std::pair<double, double>(position_error, heading_error);
 }
 
-} // namespace me5413_world
+} // namespace rl_world
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "goal_publisher_node");
-  me5413_world::GoalPublisherNode goal_publisher_node;
+  rl_world::GoalPublisherNode goal_publisher_node;
   ros::spin();  // spin the ros node.
   return 0;
 }

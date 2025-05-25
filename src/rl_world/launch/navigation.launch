@@ -2,6 +2,6 @@
 
   <!-- Connect the robot to a keyboard teleop controller -->
   <node name="teleop_twist_keyboard" pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" output="screen" respawn="true"/>
-  <node ns="me5413_world" pkg="me5413_world" type="goal_publisher_node" name="goal_publisher_node" output="screen" />
+  <node ns="rl_world" pkg="rl_world" type="goal_publisher_node" name="goal_publisher_node" output="screen" />
 
 </launch>

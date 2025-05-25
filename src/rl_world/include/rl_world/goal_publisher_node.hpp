@@ -31,7 +31,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <visualization_msgs/MarkerArray.h>
 
-namespace me5413_world 
+namespace rl_world 
 {
 
 class GoalPublisherNode
@@ -88,6 +88,6 @@ class GoalPublisherNode
   std_msgs::Float32 relative_heading_error_;
 };
 
-} // namespace me5413_world
+} // namespace rl_world
 
 #endif // GOAL_PUBLISHER_NODE_H_

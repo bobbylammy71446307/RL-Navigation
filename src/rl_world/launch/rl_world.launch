@@ -4,7 +4,7 @@
 
     <!-- Load the project world into Gazebo -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
-        <arg name="world_name" value="$(find me5413_world)/worlds/me5413_project_2425.world"/>
+        <arg name="world_name" value="$(find rl_world)/worlds/me5413_project_2425.world"/>
         <arg name="debug" value="false" />
         <arg name="gui" value="true" />
         <arg name="paused" value="false"/>
@@ -12,23 +12,23 @@
         <arg name="headless" value="false"/>
     </include>
 
-    <!-- <include file="$(find me5413_world)/launch/control.launch" />
-    <arg name="map_file" default="$(find me5413_world)/map/map.yaml"/>
+    <!-- <include file="$(find rl_world)/launch/control.launch" />
+    <arg name="map_file" default="$(find rl_world)/map/map.yaml"/>
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
 
-    <include file="$(find me5413_world)/launch/amcl.launch" /> -->
+    <include file="$(find rl_world)/launch/amcl.launch" /> -->
 
 
     <!-- Add our jackal robot into the simulation -->
-    <!-- <include file="$(find me5413_world)/launch/include/spawn_jackal.launch"/> -->
+    <!-- <include file="$(find rl_world)/launch/include/spawn_jackal.launch"/> -->
 
-    <include file="$(find me5413_world)/launch/pioneer3dx.gazebo.launch"/>
+    <include file="$(find rl_world)/launch/pioneer3dx.gazebo.launch"/>
 
 
     
     <!-- Load the destination configuration -->
-    <rosparam command="load" file="$(find me5413_world)/config/config.yaml" />
+    <rosparam command="load" file="$(find rl_world)/config/config.yaml" />
 
     <!-- Load the EKF configuration -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find me5413_world)/rviz/rl.rviz" />
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rl_world)/rviz/rl.rviz" />
 </launch>

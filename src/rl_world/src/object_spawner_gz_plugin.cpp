@@ -6,7 +6,7 @@
  
 **/
 
-#include "me5413_world/object_spawner_gz_plugin.hpp"
+#include "rl_world/object_spawner_gz_plugin.hpp"
 
 namespace gazebo
 {
